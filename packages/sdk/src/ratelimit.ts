@@ -1,6 +1,8 @@
 import { Analytics, Geo } from "./analytics";
 import { Cache } from "./cache";
 import type { Algorithm, Context, RatelimitResponse } from "./types";
+import { getEncoding } from "js-tiktoken";
+const enc = getEncoding("cl100k_base");
 
 export class TimeoutError extends Error {
   constructor() {
@@ -127,12 +129,16 @@ export abstract class Ratelimit<TContext extends Context> {
    *  return "Yes"
    * ```
    */
-  public limit = async (identifier: string, req?: { geo?: Geo, numTokens?: number }): Promise<RatelimitResponse> => {
+  public limit = async (identifier: string, req?: { geo?: Geo, promptString?: string }): Promise<RatelimitResponse> => {
     const key = [this.prefix, identifier].join(":");
     let timeoutId: any = null;
-    const numTokens = req?.numTokens!;
     try {
-      const arr: Promise<RatelimitResponse>[] = [this.limiter(this.ctx, key, { numTokens })];
+      let arr: Promise<RatelimitResponse>[] = [];
+      if (req?.promptString) {
+        arr = [this.limiter(this.ctx, key, { numTokens: enc.encode(req?.promptString).length })];
+      } else {
+        arr = [this.limiter(this.ctx, key)];
+      }
       if (this.timeout > 0) {
         arr.push(
           new Promise((resolve) => {
