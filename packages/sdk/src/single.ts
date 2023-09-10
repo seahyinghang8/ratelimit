@@ -94,6 +94,71 @@ export class RegionRatelimit extends Ratelimit<RegionContext> {
     });
   }
 
+  static fixedWindowTokenCount(
+    /**
+     * How many tokens are allowed per window.
+     */
+    tokens: number,
+    /**
+     * The duration in which `tokens` requests are allowed.
+     */
+    window: Duration,
+  ): Algorithm<RegionContext> {
+    const windowDuration = ms(window);
+
+    const script = `
+    local key       = KEYS[1]
+    local numTokens = ARGV[1]
+    local window    = ARGV[2]
+    
+    local r = redis.call("INCRBY", key, numTokens)
+    if r == 1 then 
+    -- The first time this key is set, the value will be 1.
+    -- So we only need the expire command once
+    redis.call("PEXPIRE", key, window)
+    end
+    
+    return r
+    `;
+
+    return async function (ctx: RegionContext, identifier: string, opts?: { numTokens?: number }) {
+      if (!opts || !opts.numTokens) {
+        throw "Number of tokens are needed for fixedWindowTokenCount to work!!!!"
+      }
+
+      const bucket = Math.floor(Date.now() / windowDuration);
+      const key = [identifier, bucket].join(":");
+
+      if (ctx.cache) {
+        const { blocked, reset } = ctx.cache.isBlocked(identifier);
+        if (blocked) {
+          return {
+            success: false,
+            limit: tokens,
+            remaining: 0,
+            reset: reset,
+            pending: Promise.resolve(),
+          };
+        }
+      }
+      const usedTokensAfterUpdate = (await ctx.redis.eval(script, [key], [opts.numTokens, windowDuration])) as number;
+
+      const success = usedTokensAfterUpdate <= tokens;
+      const reset = (bucket + 1) * windowDuration;
+      if (ctx.cache && !success) {
+        ctx.cache.blockUntil(identifier, reset);
+      }
+
+      return {
+        success,
+        limit: tokens,
+        remaining: Math.max(0, tokens - usedTokensAfterUpdate),
+        reset,
+        pending: Promise.resolve(),
+      };
+    };
+  }
+
   /**
    * Each request inside a fixed time increases a counter.
    * Once the counter reaches the maximum allowed number, all further requests are
@@ -446,8 +511,8 @@ export class RegionRatelimit extends Ratelimit<RegionContext> {
 
         const pending = success
           ? ctx.redis.eval(script, [key], [windowDuration]).then((t) => {
-              ctx.cache!.set(key, t as number);
-            })
+            ctx.cache!.set(key, t as number);
+          })
           : Promise.resolve();
 
         return {

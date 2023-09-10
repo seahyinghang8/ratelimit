@@ -63,6 +63,7 @@ export type Algorithm<TContext> = (
   identifier: string,
   opts?: {
     cache?: EphemeralCache;
+    numTokens?: number;
   },
 ) => Promise<RatelimitResponse>;
 
