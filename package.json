@@ -1,5 +1,5 @@
 {
-  "name": "@upstash/ratelimit",
+  "name": "ratelimit",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -17,5 +17,4 @@
     "node": ">=16.0.0"
   },
   "packageManager": "pnpm@8.5.1"
-
 }
