@@ -98,9 +98,9 @@ export abstract class Ratelimit<TContext extends Context> {
     this.prefix = config.prefix ?? "@upstash/ratelimit";
     this.analytics = config.analytics
       ? new Analytics({
-          redis: Array.isArray(this.ctx.redis) ? this.ctx.redis[0] : this.ctx.redis,
-          prefix: this.prefix,
-        })
+        redis: Array.isArray(this.ctx.redis) ? this.ctx.redis[0] : this.ctx.redis,
+        prefix: this.prefix,
+      })
       : undefined;
 
     if (config.ephemeralCache instanceof Map) {
@@ -129,13 +129,13 @@ export abstract class Ratelimit<TContext extends Context> {
    *  return "Yes"
    * ```
    */
-  public limit = async (identifier: string, req?: { geo?: Geo, promptString?: string }): Promise<RatelimitResponse> => {
+  public limit = async (identifier: string, req?: { geo?: Geo, messages?: { content: string }[] }): Promise<RatelimitResponse> => {
     const key = [this.prefix, identifier].join(":");
     let timeoutId: any = null;
     try {
       let arr: Promise<RatelimitResponse>[] = [];
-      if (req?.promptString) {
-        arr = [this.limiter(this.ctx, key, { numTokens: enc.encode(req?.promptString).length })];
+      if (req?.messages) {
+        arr = [this.limiter(this.ctx, key, { numTokens: enc.encode(req?.messages.map(message => message.content).join("")).length })];
       } else {
         arr = [this.limiter(this.ctx, key)];
       }

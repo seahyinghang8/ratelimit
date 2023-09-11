@@ -344,6 +344,28 @@ your users will enjoy the latency of whichever db is closest to them.
 
 We provide different algorithms to use out of the box. Each has pros and cons.
 
+
+### Fixed Window Token Count
+
+Similar to Fixed Window algorithm. Main difference is that you pass in openai messages to the function.
+
+#### Usage:
+
+Create a new ratelimiter, that allows 10 openai tokens per 10 seconds.
+
+```ts
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.fixedWindowTokenCount(10, "10 s"),
+  analytics: true
+});
+
+const { success, limit, reset, remaining } = await ratelimit.limit(
+  `ratelimit_${id}`, {
+  messages: openaiMessages
+})
+```
+
 ### Fixed Window
 
 This algorithm divides time into fixed durations/windows. For example each
